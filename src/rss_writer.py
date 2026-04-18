@@ -11,6 +11,9 @@ from .models import RankedWork
 logger = logging.getLogger(__name__)
 
 
+_DC_NS = "http://purl.org/dc/elements/1.1/"
+
+
 def write_rss(
     works: Iterable[RankedWork],
     output_path: Path | str,
@@ -20,7 +23,8 @@ def write_rss(
     description: str = "AI assisted literature watch",
 ) -> Path:
     works_list = list(works)
-    rss = ET.Element("rss", version="2.0")
+    ET.register_namespace("dc", _DC_NS)
+    rss = ET.Element("rss", {"version": "2.0", "xmlns:dc": _DC_NS})
     channel = ET.SubElement(rss, "channel")
     ET.SubElement(channel, "title").text = title
     ET.SubElement(channel, "link").text = link
@@ -36,12 +40,18 @@ def write_rss(
         ET.SubElement(item, "pubDate").text = _format_rfc822(work.published)
         if work.venue:
             ET.SubElement(item, "category").text = work.venue
+        for author in work.authors:
+            ET.SubElement(item, f"{{{_DC_NS}}}creator").text = author
+        if work.source:
+            ET.SubElement(item, f"{{{_DC_NS}}}source").text = work.source
         description_lines = []
         if work.abstract:
             description_lines.append(work.abstract)
         published_text = work.published.isoformat() if work.published else "Unknown"
         description_lines.append(f"Published: {published_text}")
         description_lines.append(f"Venue: {work.venue or 'Unknown'}")
+        description_lines.append(f"Authors: {', '.join(work.authors) if work.authors else 'Unknown'}")
+        description_lines.append(f"Source: {work.source or 'Unknown'}")
         ET.SubElement(item, "description").text = "\n".join(description_lines)
 
     tree = ET.ElementTree(rss)
